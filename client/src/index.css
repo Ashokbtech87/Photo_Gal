@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.6);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.4);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(75, 85, 99, 0.6);
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border border-white/20 dark:border-gray-700/30;
+  }
+
+  .glass-strong {
+    @apply bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-white/30 dark:border-gray-700/40;
+  }
+
+  .btn-primary {
+    @apply px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 
+           text-white font-medium rounded-xl shadow-lg shadow-violet-500/25 
+           transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:-translate-y-0.5
+           active:translate-y-0 active:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700
+           text-gray-700 dark:text-gray-300 font-medium rounded-xl
+           transition-all duration-200 hover:-translate-y-0.5
+           active:translate-y-0;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700
+           rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500
+           transition-all duration-200 placeholder:text-gray-400 dark:placeholder:text-gray-500;
+  }
+
+  /* Pinterest-style masonry */
+  .pin-grid {
+    columns: 2;
+    column-gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .pin-grid { columns: 2; column-gap: 14px; }
+  }
+  @media (min-width: 768px) {
+    .pin-grid { columns: 3; column-gap: 16px; }
+  }
+  @media (min-width: 1024px) {
+    .pin-grid { columns: 4; column-gap: 16px; }
+  }
+  @media (min-width: 1536px) {
+    .pin-grid { columns: 5; column-gap: 20px; }
+  }
+
+  .pin-card {
+    break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  @media (min-width: 768px) {
+    .pin-card { margin-bottom: 16px; }
+  }
+  @media (min-width: 1536px) {
+    .pin-card { margin-bottom: 20px; }
+  }
+}

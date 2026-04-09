@@ -1,0 +1,11 @@
+node_modules/
+uploads/
+*.db
+*.db-wal
+*.db-shm
+.env
+dist/
+.DS_Store
+Thumbs.db
+google-debug.txt
+test-*.js
