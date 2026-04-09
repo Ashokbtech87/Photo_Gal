@@ -196,7 +196,58 @@ AI-powered virtual clothing try-on using Replicate API.
 
 ---
 
-## 🗂️ Project Structure
+## � Requirements
+
+All dependencies are documented in [`requirements.txt`](requirements.txt). Here's a summary:
+
+### Server Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| express | >= 4.18.2 | Web framework |
+| better-sqlite3 | >= 11.0.0 | SQLite database driver |
+| sharp | >= 0.33.2 | Image processing (thumbnails, blur placeholders) |
+| multer | >= 1.4.5 | File upload middleware (20MB limit) |
+| jsonwebtoken | >= 9.0.2 | JWT authentication (7-day tokens) |
+| bcryptjs | >= 2.4.3 | Password hashing |
+| cors | >= 2.8.5 | Cross-Origin Resource Sharing |
+| archiver | >= 7.0.1 | ZIP archive creation (bulk download) |
+| uuid | >= 9.0.0 | Unique ID generation |
+| concurrently | >= 8.2.2 | Run server & client simultaneously |
+
+### Client Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| react | >= 18.2.0 | UI library |
+| react-dom | >= 18.2.0 | React DOM renderer |
+| react-router-dom | >= 6.22.0 | Client-side routing |
+| framer-motion | >= 11.0.0 | Animations & transitions |
+| lucide-react | >= 0.344.0 | Icon library |
+
+### Client Dev Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| vite | >= 5.1.4 | Build tool & dev server |
+| @vitejs/plugin-react | >= 4.2.1 | React support for Vite |
+| tailwindcss | >= 3.4.1 | Utility-first CSS framework |
+| postcss | >= 8.4.35 | CSS post-processing |
+| autoprefixer | >= 10.4.17 | Vendor prefix automation |
+
+### Optional API Keys
+
+| Key | Service |
+|-----|---------|
+| `REPLICATE_API_TOKEN` | Virtual Try-On (Replicate API) |
+| `PEXELS_API_KEY` | Pexels image search |
+| `UNSPLASH_ACCESS_KEY` | Unsplash image search |
+| `GOOGLE_API_KEY` | Google Custom Search |
+| `GOOGLE_CX` | Google Search Engine ID |
+
+---
+
+## �🗂️ Project Structure
 
 ```
 Photo_Gal/

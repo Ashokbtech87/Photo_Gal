@@ -1,0 +1,49 @@
+# ============================================
+# Lumina Photo Gallery - Project Requirements
+# ============================================
+# This is a Node.js project. Install dependencies
+# using npm (not pip). This file documents all
+# required packages and their minimum versions.
+# ============================================
+
+# ── Prerequisites ──────────────────────────────
+# Node.js            >= 18.0.0       https://nodejs.org/
+# npm                >= 9.0.0        (bundled with Node.js)
+# Ollama (optional)  >= 0.1.0        https://ollama.com/
+
+# ── Server Dependencies (root package.json) ───
+express             >= 4.18.2       # Web framework
+better-sqlite3      >= 11.0.0       # SQLite database driver
+sharp               >= 0.33.2       # Image processing (thumbnails, blur placeholders)
+multer              >= 1.4.5        # File upload middleware
+jsonwebtoken        >= 9.0.2        # JWT authentication
+bcryptjs            >= 2.4.3        # Password hashing
+cors                >= 2.8.5        # Cross-Origin Resource Sharing
+archiver            >= 7.0.1        # ZIP archive creation (bulk download)
+uuid                >= 9.0.0        # Unique ID generation
+concurrently        >= 8.2.2        # Run server & client simultaneously
+
+# ── Client Dependencies (client/package.json) ─
+react               >= 18.2.0       # UI library
+react-dom           >= 18.2.0       # React DOM renderer
+react-router-dom    >= 6.22.0       # Client-side routing
+framer-motion       >= 11.0.0       # Animations & transitions
+lucide-react        >= 0.344.0      # Icon library
+
+# ── Client Dev Dependencies ───────────────────
+vite                >= 5.1.4        # Build tool & dev server
+@vitejs/plugin-react >= 4.2.1       # React support for Vite
+tailwindcss         >= 3.4.1        # Utility-first CSS framework
+postcss             >= 8.4.35       # CSS post-processing
+autoprefixer        >= 10.4.17      # Vendor prefix automation
+
+# ── Optional API Keys (for full functionality) ─
+# REPLICATE_API_TOKEN                # Virtual Try-On (Replicate API)
+# PEXELS_API_KEY                     # Pexels image search
+# UNSPLASH_ACCESS_KEY                # Unsplash image search
+# GOOGLE_API_KEY                     # Google Custom Search
+# GOOGLE_CX                          # Google Search Engine ID
+
+# ── Installation ──────────────────────────────
+# npm install              # Install server deps
+# cd client && npm install # Install client deps
