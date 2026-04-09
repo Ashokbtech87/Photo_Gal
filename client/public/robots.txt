@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /gallery
+Allow: /login
+Allow: /register
+
+Disallow: /api/
+Disallow: /uploads/thumbs/
+
+Sitemap: https://lumina-gallery.onrender.com/sitemap.xml

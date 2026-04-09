@@ -88,15 +88,21 @@ export default function NewsFeed() {
   const [siteStats, setSiteStats] = useState({ totalVisits: 0, liveUsers: 0 });
 
   useEffect(() => {
-    // Record a visit
-    fetch(`${API_BASE}/stats/visit`, { method: 'POST' }).catch(() => {});
+    // Get or create session ID
+    let sid = sessionStorage.getItem('lumina_session');
+    if (!sid) { sid = crypto.randomUUID(); sessionStorage.setItem('lumina_session', sid); }
+
+    // Record a visit with page + referrer + session
+    fetch(`${API_BASE}/stats/visit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: window.location.pathname, referrer: document.referrer, sessionId: sid }),
+    }).catch(() => {});
 
     // SSE for live updates
     const evtSource = new EventSource(`${API_BASE}/stats/live`);
     evtSource.onmessage = (e) => {
-      try {
-        setSiteStats(JSON.parse(e.data));
-      } catch {}
+      try { setSiteStats(JSON.parse(e.data)); } catch {}
     };
     return () => evtSource.close();
   }, []);

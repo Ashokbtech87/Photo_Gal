@@ -1,0 +1,24 @@
+# ── Free Deployment on Render.com ─────────────────────────────────────
+# This file configures both frontend and backend as a single service.
+# Render gives you: Free HTTPS, auto-deploy from GitHub, 750 hrs/month free.
+#
+# Steps:
+# 1. Go to https://render.com → sign up free with GitHub
+# 2. New → Web Service → Connect your Photo_Gal repo
+# 3. Settings will auto-detect from this file
+# 4. Click "Create Web Service" — done!
+
+services:
+  - type: web
+    name: lumina-gallery
+    runtime: node
+    plan: free
+    buildCommand: npm install && cd client && npm install && npm run build
+    startCommand: NODE_ENV=production node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /api/health
+    autoDeploy: true

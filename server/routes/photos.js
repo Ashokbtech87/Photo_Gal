@@ -17,7 +17,7 @@ if (!fs.existsSync(thumbsDir)) {
 }
 
 // Upload photos (single or multiple)
-router.post('/', authMiddleware, upload.array('photos', 20), async (req, res) => {
+router.post('/', authMiddleware, upload.array('photos', 20), upload.validateFiles, async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });

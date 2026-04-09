@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const crypto = require('crypto');
 
-// Create stats table
+// ── Tables ─────────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS site_stats (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -10,30 +11,103 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   INSERT OR IGNORE INTO site_stats (id, total_visits) VALUES (1, 0);
+
+  CREATE TABLE IF NOT EXISTS page_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    page TEXT NOT NULL,
+    referrer TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    country TEXT DEFAULT '',
+    city TEXT DEFAULT '',
+    device TEXT DEFAULT 'desktop',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pv_session ON page_views(session_id);
+  CREATE INDEX IF NOT EXISTS idx_pv_date ON page_views(created_at);
+  CREATE INDEX IF NOT EXISTS idx_pv_page ON page_views(page);
 `);
 
 // Track live SSE connections
 const liveClients = new Set();
 
-// Record a visit (called once per page load)
+// ── Helper: detect device type from user-agent ─────────────────────
+function detectDevice(ua) {
+  if (!ua) return 'unknown';
+  if (/mobile|android|iphone|ipad|ipod/i.test(ua)) return 'mobile';
+  if (/tablet|ipad/i.test(ua)) return 'tablet';
+  return 'desktop';
+}
+
+// ── POST /visit — Record a visit + page view ───────────────────────
 router.post('/visit', (req, res) => {
   db.prepare('UPDATE site_stats SET total_visits = total_visits + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run();
   const stats = db.prepare('SELECT total_visits FROM site_stats WHERE id = 1').get();
-  // Broadcast updated total to all live clients
+
+  // Record page view
+  const { page, referrer, sessionId } = req.body;
+  const ua = req.headers['user-agent'] || '';
+  const sid = sessionId || crypto.randomUUID();
+
+  try {
+    db.prepare(`INSERT INTO page_views (session_id, page, referrer, user_agent, device, created_at) 
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
+      .run(sid, page || '/', referrer || '', ua, detectDevice(ua));
+  } catch { /* ignore logging errors */ }
+
   broadcastLiveCount(stats.total_visits);
-  res.json({ totalVisits: stats.total_visits });
+  res.json({ totalVisits: stats.total_visits, sessionId: sid });
 });
 
-// Get current stats
+// ── POST /pageview — Track page navigation (SPA) ──────────────────
+router.post('/pageview', (req, res) => {
+  const { page, sessionId, referrer } = req.body;
+  if (!page || !sessionId) return res.status(400).json({ error: 'page and sessionId required' });
+  const ua = req.headers['user-agent'] || '';
+  try {
+    db.prepare(`INSERT INTO page_views (session_id, page, referrer, user_agent, device, created_at) 
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
+      .run(sessionId, page, referrer || '', ua, detectDevice(ua));
+  } catch { /* ignore */ }
+  res.json({ ok: true });
+});
+
+// ── GET / — Current stats summary ──────────────────────────────────
 router.get('/', (req, res) => {
   const stats = db.prepare('SELECT total_visits FROM site_stats WHERE id = 1').get();
+
+  // Today's stats
+  const today = db.prepare(`SELECT COUNT(*) as views, COUNT(DISTINCT session_id) as sessions 
+                            FROM page_views WHERE date(created_at) = date('now')`).get();
+  // This week
+  const week = db.prepare(`SELECT COUNT(*) as views, COUNT(DISTINCT session_id) as sessions 
+                           FROM page_views WHERE created_at >= datetime('now', '-7 days')`).get();
+  // Top pages (last 7 days)
+  const topPages = db.prepare(`SELECT page, COUNT(*) as views FROM page_views 
+                               WHERE created_at >= datetime('now', '-7 days')
+                               GROUP BY page ORDER BY views DESC LIMIT 10`).all();
+  // Device breakdown
+  const devices = db.prepare(`SELECT device, COUNT(*) as count FROM page_views 
+                              WHERE created_at >= datetime('now', '-7 days')
+                              GROUP BY device ORDER BY count DESC`).all();
+  // Top referrers
+  const referrers = db.prepare(`SELECT referrer, COUNT(*) as count FROM page_views 
+                                WHERE referrer != '' AND created_at >= datetime('now', '-7 days')
+                                GROUP BY referrer ORDER BY count DESC LIMIT 10`).all();
+
   res.json({
     totalVisits: stats?.total_visits || 0,
     liveUsers: liveClients.size,
+    today: { views: today?.views || 0, sessions: today?.sessions || 0 },
+    week: { views: week?.views || 0, sessions: week?.sessions || 0 },
+    topPages,
+    devices,
+    referrers,
   });
 });
 
-// SSE endpoint for live user count
+// ── GET /live — SSE for real-time live user count ──────────────────
 router.get('/live', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -42,17 +116,11 @@ router.get('/live', (req, res) => {
     'Access-Control-Allow-Origin': '*',
   });
 
-  // Add this client
   liveClients.add(res);
-
-  // Send initial count
   const stats = db.prepare('SELECT total_visits FROM site_stats WHERE id = 1').get();
   res.write(`data: ${JSON.stringify({ liveUsers: liveClients.size, totalVisits: stats?.total_visits || 0 })}\n\n`);
-
-  // Broadcast updated live count to ALL clients
   broadcastLiveCount(stats?.total_visits || 0);
 
-  // Clean up on disconnect
   req.on('close', () => {
     liveClients.delete(res);
     const s = db.prepare('SELECT total_visits FROM site_stats WHERE id = 1').get();
@@ -63,11 +131,7 @@ router.get('/live', (req, res) => {
 function broadcastLiveCount(totalVisits) {
   const data = JSON.stringify({ liveUsers: liveClients.size, totalVisits });
   for (const client of liveClients) {
-    try {
-      client.write(`data: ${data}\n\n`);
-    } catch {
-      liveClients.delete(client);
-    }
+    try { client.write(`data: ${data}\n\n`); } catch { liveClients.delete(client); }
   }
 }
 
