@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Menu, X, Sun, Moon, Upload, LogOut, User, FolderOpen, Sparkles, Settings, Bot } from 'lucide-react';
+import { Camera, Menu, X, Sun, Moon, Upload, LogOut, User, FolderOpen, Sparkles, Settings, Bot, Newspaper } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -52,6 +52,11 @@ export default function Navbar() {
             {user && (
               <Link to="/agent" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <Bot className="w-4 h-4" /> Agent
+              </Link>
+            )}
+            {user && (
+              <Link to="/news" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+                <Newspaper className="w-4 h-4" /> News
               </Link>
             )}
 
@@ -115,6 +120,11 @@ export default function Navbar() {
               {user && (
                 <Link to="/agent" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-emerald-600 dark:text-emerald-400">
                   <Bot className="w-4 h-4" /> AI Agent
+                </Link>
+              )}
+              {user && (
+                <Link to="/news" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-orange-600 dark:text-orange-400">
+                  <Newspaper className="w-4 h-4" /> News Feed
                 </Link>
               )}
               <div className="flex items-center justify-between px-4 py-2.5">

@@ -80,6 +80,13 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_tryon_user ON tryon_results(user_id);
+
+  CREATE TABLE IF NOT EXISTS news_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT UNIQUE NOT NULL,
+    data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Migration: add visibility column to albums if missing

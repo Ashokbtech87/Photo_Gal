@@ -28,6 +28,7 @@ app.use('/api/albums', require('./routes/albums'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/tryon', require('./routes/tryon'));
 app.use('/api/agent', require('./routes/agent'));
+app.use('/api/news', require('./routes/news'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));

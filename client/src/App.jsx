@@ -9,6 +9,7 @@ import AlbumView from './pages/AlbumView';
 import VirtualTryOn from './pages/VirtualTryOn';
 import Settings from './pages/Settings';
 import AIAgent from './pages/AIAgent';
+import NewsFeed from './pages/NewsFeed';
 import { useAuth } from './context/AuthContext';
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/tryon" element={<VirtualTryOn />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/agent" element={<AIAgent />} />
+          <Route path="/news" element={<NewsFeed />} />
         </Routes>
       </main>
     </div>
