@@ -33,7 +33,10 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-2">
-            <Link to="/" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <Link to="/" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+              <Newspaper className="w-4 h-4" /> News
+            </Link>
+            <Link to="/gallery" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
               Gallery
             </Link>
             <Link to="/albums" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -52,11 +55,6 @@ export default function Navbar() {
             {user && (
               <Link to="/agent" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <Bot className="w-4 h-4" /> Agent
-              </Link>
-            )}
-            {user && (
-              <Link to="/news" className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
-                <Newspaper className="w-4 h-4" /> News
               </Link>
             )}
 
@@ -101,7 +99,10 @@ export default function Navbar() {
             className="md:hidden overflow-hidden glass-strong border-t border-gray-200 dark:border-gray-800"
           >
             <div className="px-4 py-3 space-y-1">
-              <Link to="/" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium">
+              <Link to="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-orange-600 dark:text-orange-400">
+                <Newspaper className="w-4 h-4" /> News
+              </Link>
+              <Link to="/gallery" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium">
                 Gallery
               </Link>
               <Link to="/albums" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium">
@@ -120,11 +121,6 @@ export default function Navbar() {
               {user && (
                 <Link to="/agent" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-emerald-600 dark:text-emerald-400">
                   <Bot className="w-4 h-4" /> AI Agent
-                </Link>
-              )}
-              {user && (
-                <Link to="/news" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-orange-600 dark:text-orange-400">
-                  <Newspaper className="w-4 h-4" /> News Feed
                 </Link>
               )}
               <div className="flex items-center justify-between px-4 py-2.5">

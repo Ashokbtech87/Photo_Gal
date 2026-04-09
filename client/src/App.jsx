@@ -28,7 +28,8 @@ export default function App() {
       <Navbar />
       <main className="pt-20">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<NewsFeed />} />
+          <Route path="/gallery" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/upload" element={<Upload />} />
@@ -37,7 +38,6 @@ export default function App() {
           <Route path="/tryon" element={<VirtualTryOn />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/agent" element={<AIAgent />} />
-          <Route path="/news" element={<NewsFeed />} />
         </Routes>
       </main>
     </div>
