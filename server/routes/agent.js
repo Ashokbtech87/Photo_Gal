@@ -64,8 +64,9 @@ async function searchUnsplash(query, count, apiKey) {
 }
 
 // ── Helper: search images via web (DuckDuckGo - no API key needed) ──
-async function searchWebFree(query, count) {
+async function searchWebFree(query, count, options = {}) {
   const num = Math.min(count, 30);
+  const { recency } = options; // 'day', 'week', 'month' or null
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
@@ -78,8 +79,14 @@ async function searchWebFree(query, count) {
   const vqdMatch = html.match(/vqd=["']?([^"'&]+)/);
   if (!vqdMatch) throw new Error('Could not get search token');
 
+  // Build time filter: time:d (day), time:w (week), time:m (month)
+  let filterStr = ',,,';
+  if (recency === 'day') filterStr = ',,,time:d';
+  else if (recency === 'week') filterStr = ',,,time:w';
+  else if (recency === 'month') filterStr = ',,,time:m';
+
   // Step 2: Fetch image results
-  const imgUrl = `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&f=,,,&p=1`;
+  const imgUrl = `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&f=${encodeURIComponent(filterStr)}&p=1`;
   const imgRes = await fetch(imgUrl, {
     headers: { ...headers, 'Referer': 'https://duckduckgo.com/' },
   });
@@ -292,8 +299,28 @@ router.post('/search', authMiddleware, async (req, res) => {
   const maxCount = Math.min(Math.max(1, parseInt(count) || 10), 30);
 
   try {
+    // Detect if the prompt is about news, current events, or trending topics
+    const newsKeywords = /\b(news|trending|current|latest|today|recent|breaking|headlines|update|happening|events?|politics|election)\b/i;
+    const isNewsQuery = newsKeywords.test(prompt);
+    const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
     // Step 1: Ask Ollama to extract search queries from the user prompt
-    const analysisPrompt = `You are an image search assistant. The user wants to find images. Based on their request below, generate exactly ${maxCount <= 10 ? '1 to 3' : '3 to 5'} concise image search queries (each on a new line, no numbering, no quotes, no extra text).
+    const analysisPrompt = isNewsQuery
+      ? `You are a current events image search assistant. Today's date is ${currentDate}.
+
+The user wants to find images related to NEWS or CURRENT EVENTS. You MUST generate search queries about SPECIFIC real-world topics, people, or events that are likely trending right now (as of ${currentDate}).
+
+IMPORTANT RULES:
+- Do NOT generate generic queries like "breaking news", "trending news today", or "news headlines"
+- Instead, generate queries about SPECIFIC current topics (e.g., specific political events, world leaders, sports results, tech launches, natural disasters, cultural events)
+- Include names of real people, places, or specific events
+- Each query should find actual news photos, not stock "breaking news" graphics
+- Generate exactly ${maxCount <= 10 ? '3' : '5'} queries, each on a new line, no numbering, no quotes, no extra text
+
+User request: "${prompt}"
+
+Specific current event search queries:`
+      : `You are an image search assistant. The user wants to find images. Based on their request below, generate exactly ${maxCount <= 10 ? '1 to 3' : '3 to 5'} concise image search queries (each on a new line, no numbering, no quotes, no extra text).
 
 User request: "${prompt}"
 
@@ -327,7 +354,7 @@ Search queries:`;
             count: perQuery,
           });
         } else if (provider === 'google_web') {
-          images = await searchWebFree(query, perQuery);
+          images = await searchWebFree(query, perQuery, { recency: isNewsQuery ? 'week' : null });
         } else if (provider === 'google') {
           images = await searchGoogle(query, perQuery, image_api_key, google_cx);
         } else if (provider === 'unsplash') {
