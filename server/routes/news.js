@@ -232,4 +232,143 @@ async function generateNewsFeed(category) {
   };
 }
 
+// ── Helper: DuckDuckGo web search (text results) ───────────────────
+async function fetchDDGWeb(query, count = 15) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
+
+  // Use DuckDuckGo HTML lite for web results
+  const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`DDG web search failed (${res.status})`);
+  const html = await res.text();
+
+  // Parse results from DDG lite HTML
+  const results = [];
+  // Match result links and snippets
+  const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/gi;
+  const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+
+  // Alternative: parse the table-based results
+  const rowRegex = /<tr[^>]*>[\s\S]*?<a[^>]+rel="nofollow"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/tr>/gi;
+  let match;
+  while ((match = rowRegex.exec(html)) !== null && results.length < count) {
+    const href = match[1];
+    const title = match[2].replace(/<[^>]+>/g, '').trim();
+    if (href && title && href.startsWith('http')) {
+      results.push({ url: href, title });
+    }
+  }
+
+  // If regex didn't work, try simpler approach
+  if (results.length === 0) {
+    const simpleRegex = /href="(https?:\/\/[^"]+)"[^>]*>([^<]{10,})<\/a>/gi;
+    while ((match = simpleRegex.exec(html)) !== null && results.length < count) {
+      const href = match[1];
+      const title = match[2].replace(/<[^>]+>/g, '').trim();
+      if (!href.includes('duckduckgo.com') && title.length > 5) {
+        results.push({ url: href, title });
+      }
+    }
+  }
+
+  // Get snippets
+  const snippets = [];
+  let sMatch;
+  while ((sMatch = snippetRegex.exec(html)) !== null) {
+    snippets.push(sMatch[1].replace(/<[^>]+>/g, '').trim());
+  }
+
+  return results.map((r, i) => ({
+    ...r,
+    snippet: snippets[i] || '',
+    source: new URL(r.url).hostname.replace('www.', ''),
+    type: 'web',
+  }));
+}
+
+// ── POST /api/news/search — Web search with results + images ───────
+router.post('/search', optionalAuth, async (req, res) => {
+  const { query, type } = req.body;
+  if (!query || query.trim().length < 2) {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+
+  const q = query.trim();
+  const searchType = type || 'all'; // 'all', 'news', 'web', 'images'
+
+  try {
+    const results = { query: q, type: searchType, webResults: [], newsResults: [], imageResults: [] };
+
+    // Fetch in parallel based on type
+    const promises = [];
+
+    if (searchType === 'all' || searchType === 'web') {
+      promises.push(
+        fetchDDGWeb(q, 12)
+          .then(r => { results.webResults = r; })
+          .catch(err => { console.error('Web search error:', err.message); })
+      );
+    }
+
+    if (searchType === 'all' || searchType === 'news') {
+      promises.push(
+        fetchDDGNews(q, 12)
+          .then(r => {
+            results.newsResults = r.map((item, i) => ({
+              id: `search-news-${i}`,
+              title: item.title || '',
+              excerpt: item.excerpt || item.body || '',
+              source: item.source || 'Unknown',
+              url: item.url || '#',
+              image: item.image || null,
+              timeAgo: item.date ? timeAgo(typeof item.date === 'number' ? item.date : Math.floor(new Date(item.date).getTime() / 1000)) : '',
+              type: 'news',
+            }));
+          })
+          .catch(err => { console.error('News search error:', err.message); })
+      );
+    }
+
+    if (searchType === 'all' || searchType === 'images') {
+      promises.push(
+        fetchDDGImages(q, 20)
+          .then(r => {
+            results.imageResults = r.map(img => ({
+              url: img.image,
+              thumb: img.thumbnail,
+              title: img.title || q,
+              source: img.source || new URL(img.url || img.image).hostname.replace('www.', ''),
+              sourceUrl: img.url || img.image,
+              width: img.width || 800,
+              height: img.height || 600,
+              type: 'image',
+            }));
+          })
+          .catch(err => { console.error('Image search error:', err.message); })
+      );
+    }
+
+    await Promise.all(promises);
+
+    // Build external search links
+    results.externalLinks = [
+      { name: 'Google', icon: '🔍', url: `https://www.google.com/search?q=${encodeURIComponent(q)}` },
+      { name: 'Google News', icon: '📰', url: `https://news.google.com/search?q=${encodeURIComponent(q)}` },
+      { name: 'Google Images', icon: '🖼️', url: `https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=isch` },
+      { name: 'Bing', icon: '🌐', url: `https://www.bing.com/search?q=${encodeURIComponent(q)}` },
+      { name: 'Bing News', icon: '📋', url: `https://www.bing.com/news/search?q=${encodeURIComponent(q)}` },
+      { name: 'MSN', icon: '📡', url: `https://www.msn.com/en-us/search?q=${encodeURIComponent(q)}` },
+      { name: 'DuckDuckGo', icon: '🦆', url: `https://duckduckgo.com/?q=${encodeURIComponent(q)}` },
+      { name: 'YouTube', icon: '▶️', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}` },
+    ];
+
+    res.json(results);
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ error: err.message || 'Search failed' });
+  }
+});
+
 module.exports = router;
