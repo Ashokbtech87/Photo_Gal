@@ -89,4 +89,11 @@ try {
   db.exec("ALTER TABLE albums ADD COLUMN visibility TEXT DEFAULT 'private'");
 }
 
+// Migration: add gradio_fn_name column to user_settings if missing
+try {
+  db.prepare("SELECT gradio_fn_name FROM user_settings LIMIT 1").get();
+} catch {
+  db.exec("ALTER TABLE user_settings ADD COLUMN gradio_fn_name TEXT DEFAULT ''");
+}
+
 module.exports = db;

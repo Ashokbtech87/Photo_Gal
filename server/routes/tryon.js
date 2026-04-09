@@ -61,6 +61,8 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
     if (settings.ai_provider === 'replicate') {
       resultUrl = await runReplicateTryOn(settings, personPath, garmentPath, category || 'upper_body', prompt || '');
+    } else if (settings.ai_provider === 'gradio') {
+      resultUrl = await runGradioTryOn(settings, personPath, garmentPath, category || 'upper_body', prompt || '');
     } else if (settings.ai_provider === 'custom') {
       resultUrl = await runCustomTryOn(settings, personPath, garmentPath, category || 'upper_body', prompt || '');
     } else {
@@ -186,6 +188,89 @@ async function runCustomTryOn(settings, personPath, garmentPath, category, promp
 
   const data = await response.json();
   return data.result_url || data.output || data.url || data.image;
+}
+
+// Gradio / Hugging Face Spaces integration
+async function runGradioTryOn(settings, personPath, garmentPath, category, prompt) {
+  if (!settings.custom_endpoint) throw new Error('Gradio Space URL not configured');
+
+  // Normalize the base URL (remove trailing slashes)
+  let baseUrl = settings.custom_endpoint.replace(/\/+$/, '');
+
+  // If it's a HF space short name (e.g. "yisol/IDM-VTON"), convert to full URL
+  if (!baseUrl.startsWith('http')) {
+    baseUrl = `https://${baseUrl.replace('/', '-').toLowerCase()}.hf.space`;
+  }
+
+  const personUri = imageToDataUri(personPath);
+  const garmentUri = imageToDataUri(garmentPath);
+
+  // Determine the function endpoint name
+  const fnName = settings.gradio_fn_name || '/tryon';
+  const apiPath = fnName.startsWith('/') ? fnName : `/${fnName}`;
+
+  // Build headers
+  const headers = { 'Content-Type': 'application/json' };
+  if (settings.api_key) {
+    headers['Authorization'] = `Bearer ${settings.api_key}`;
+  }
+
+  // First, try the Gradio /api/predict or /run/<fn> format
+  // Gradio apps typically accept: { data: [...args] }
+  const gradioPayload = {
+    data: [personUri, garmentUri, prompt || 'A clothing item', category]
+  };
+
+  // Try /api/<fn_name> first (newer Gradio format)
+  let response = await fetch(`${baseUrl}/api${apiPath}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(gradioPayload)
+  });
+
+  // Fallback to /run/<fn_name> (older Gradio format)
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`${baseUrl}/run${apiPath}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(gradioPayload)
+    });
+  }
+
+  // Fallback to /api/predict
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`${baseUrl}/api/predict`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(gradioPayload)
+    });
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`Gradio API error (${response.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+
+  // Gradio returns { data: [...] } — extract the result image
+  const results = data.data || data;
+  for (const item of (Array.isArray(results) ? results : [results])) {
+    // Could be a URL string
+    if (typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:image'))) {
+      return item;
+    }
+    // Could be a Gradio file object { url: '...', path: '...' }
+    if (item && typeof item === 'object') {
+      if (item.url) return item.url.startsWith('http') ? item.url : `${baseUrl}/file=${item.url}`;
+      if (item.path) return `${baseUrl}/file=${item.path}`;
+      if (item.name) return `${baseUrl}/file=${item.name}`;
+      // Handle base64 in object
+      if (item.data && typeof item.data === 'string') return item.data;
+    }
+  }
+
+  throw new Error('Could not extract result image from Gradio response');
 }
 
 // Get try-on results

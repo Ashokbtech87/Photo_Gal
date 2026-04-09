@@ -15,9 +15,17 @@ const PROVIDERS = [
     placeholder: 'r8_...',
   },
   {
+    id: 'gradio',
+    name: 'Gradio / HF Spaces',
+    description: 'Any Gradio app or Hugging Face Space (free & paid)',
+    icon: '🤗',
+    docsUrl: 'https://huggingface.co/settings/tokens',
+    placeholder: 'hf_... (optional for public spaces)',
+  },
+  {
     id: 'custom',
     name: 'Custom API',
-    description: 'Use your own endpoint (Fashn.ai, RunwayML, etc.)',
+    description: 'Use your own REST endpoint (Fashn.ai, RunwayML, etc.)',
     icon: '🔧',
     docsUrl: '',
     placeholder: 'your-api-key',
@@ -46,6 +54,7 @@ export default function Settings() {
   const [customEndpoint, setCustomEndpoint] = useState('');
   const [model, setModel] = useState(MODELS[0].id);
   const [customModel, setCustomModel] = useState('');
+  const [gradioFnName, setGradioFnName] = useState('');
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -53,6 +62,7 @@ export default function Settings() {
       setSettings(data);
       setProvider(data.ai_provider || 'replicate');
       setCustomEndpoint(data.custom_endpoint || '');
+      setGradioFnName(data.gradio_fn_name || '');
       const m = data.tryon_model || MODELS[0].id;
       if (MODELS.find(x => x.id === m)) setModel(m);
       else { setModel('custom'); setCustomModel(m); }
@@ -68,6 +78,7 @@ export default function Settings() {
         api_key: apiKey || undefined,
         custom_endpoint: customEndpoint,
         tryon_model: model === 'custom' ? customModel : model,
+        gradio_fn_name: gradioFnName || undefined,
       });
       setSettings(prev => ({ ...prev, ai_provider: provider }));
       setApiKey('');
@@ -180,7 +191,7 @@ export default function Settings() {
             )}
           </div>
 
-          {/* Model Selection (Replicate only) */}
+          {/* Model Selection (Replicate only, hide for Gradio) */}
           {provider === 'replicate' && (
             <div className="glass-strong rounded-2xl p-6">
               <label className="flex items-center gap-2 text-sm font-semibold mb-4">
@@ -214,7 +225,46 @@ export default function Settings() {
             </div>
           )}
 
-          {/* Custom Endpoint */}
+          {/* Gradio / HF Spaces Endpoint */}
+          {provider === 'gradio' && (
+            <div className="glass-strong rounded-2xl p-6">
+              <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                <Globe className="w-4 h-4 text-violet-500" /> Gradio Space URL
+              </label>
+              <input
+                type="url"
+                value={customEndpoint}
+                onChange={(e) => setCustomEndpoint(e.target.value)}
+                placeholder="https://username-spacename.hf.space"
+                className="input-field"
+              />
+              <p className="text-xs text-gray-400 mt-2">
+                Enter the HF Space URL or any Gradio app URL. The API will be called at <code className="text-violet-400">/api/predict</code> automatically.
+              </p>
+              <div className="mt-3 p-3 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800">
+                <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-1">💡 Popular Try-On Spaces:</p>
+                <ul className="text-xs text-violet-600 dark:text-violet-400 space-y-0.5">
+                  <li>• <code>yisol/IDM-VTON</code> — IDM-VTON try-on</li>
+                  <li>• <code>Nymbo/Virtual-Try-On</code> — Virtual clothes try-on</li>
+                  <li>• Search <a href="https://huggingface.co/spaces?search=try-on" target="_blank" rel="noopener noreferrer" className="underline hover:text-violet-500">HF Spaces</a> for more</li>
+                </ul>
+              </div>
+              <div className="mt-3">
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  API Function Name <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={gradioFnName}
+                  onChange={(e) => setGradioFnName(e.target.value)}
+                  placeholder="/tryon (auto-detected if empty)"
+                  className="input-field text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Custom REST Endpoint */}
           {provider === 'custom' && (
             <div className="glass-strong rounded-2xl p-6">
               <label className="flex items-center gap-2 text-sm font-semibold mb-2">
@@ -255,10 +305,10 @@ export default function Settings() {
               {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}
               {saving ? 'Saving...' : 'Save Settings'}
             </button>
-            {settings?.api_key_masked && (
+            {(settings?.api_key_masked || (provider === 'gradio' && customEndpoint)) && (
               <button onClick={handleVerify} disabled={verifying} className="btn-secondary flex items-center gap-2 disabled:opacity-50">
                 {verifying ? <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> : <Key className="w-4 h-4" />}
-                {verifying ? 'Verifying...' : 'Verify Key'}
+                {verifying ? 'Verifying...' : (provider === 'gradio' ? 'Test Connection' : 'Verify Key')}
               </button>
             )}
           </div>

@@ -20,7 +20,7 @@ router.get('/', authMiddleware, (req, res) => {
 
 // Update user settings
 router.put('/', authMiddleware, (req, res) => {
-  const { ai_provider, api_key, custom_endpoint, tryon_model } = req.body;
+  const { ai_provider, api_key, custom_endpoint, tryon_model, gradio_fn_name } = req.body;
 
   let settings = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(req.user.id);
   if (!settings) {
@@ -34,6 +34,7 @@ router.put('/', authMiddleware, (req, res) => {
       api_key = ?,
       custom_endpoint = ?,
       tryon_model = ?,
+      gradio_fn_name = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE user_id = ?
   `).run(
@@ -41,6 +42,7 @@ router.put('/', authMiddleware, (req, res) => {
     api_key !== undefined ? api_key : settings.api_key,
     custom_endpoint ?? settings.custom_endpoint,
     tryon_model ?? settings.tryon_model,
+    gradio_fn_name ?? (settings.gradio_fn_name || ''),
     req.user.id
   );
 
@@ -62,6 +64,26 @@ router.post('/verify', authMiddleware, async (req, res) => {
       if (!response.ok) return res.status(401).json({ error: 'Invalid Replicate API key' });
       const data = await response.json();
       return res.json({ valid: true, username: data.username });
+    }
+    if (settings.ai_provider === 'gradio') {
+      // Test Gradio connection by fetching the space info
+      let baseUrl = (settings.custom_endpoint || '').replace(/\/+$/, '');
+      if (!baseUrl) return res.status(400).json({ error: 'No Gradio Space URL configured' });
+      if (!baseUrl.startsWith('http')) {
+        baseUrl = `https://${baseUrl.replace('/', '-').toLowerCase()}.hf.space`;
+      }
+      const headers = {};
+      if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
+      const response = await fetch(`${baseUrl}/info`, { headers });
+      if (response.ok) {
+        return res.json({ valid: true, message: `Connected to Gradio app at ${baseUrl}` });
+      }
+      // Fallback: try /api/info
+      const response2 = await fetch(`${baseUrl}/api/info`, { headers });
+      if (response2.ok) {
+        return res.json({ valid: true, message: `Connected to Gradio app at ${baseUrl}` });
+      }
+      return res.json({ valid: true, message: 'Space URL saved (could not verify — may work at runtime)' });
     }
     res.json({ valid: true, message: 'Key saved (custom endpoint — not verified)' });
   } catch (err) {
