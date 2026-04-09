@@ -5,6 +5,26 @@ const { optionalAuth } = require('../middleware/auth');
 const router = express.Router();
 const OLLAMA_BASE = process.env.OLLAMA_URL || 'http://localhost:11434';
 
+// ── Country/Region codes for DuckDuckGo ───────────────────────────
+const REGIONS = {
+  'wt-wt': 'Worldwide',
+  'us-en': 'United States', 'gb-en': 'United Kingdom', 'in-en': 'India',
+  'ca-en': 'Canada', 'au-en': 'Australia', 'de-de': 'Germany',
+  'fr-fr': 'France', 'jp-jp': 'Japan', 'br-pt': 'Brazil',
+  'ru-ru': 'Russia', 'za-en': 'South Africa', 'sg-en': 'Singapore',
+  'ae-ar': 'UAE', 'sa-ar': 'Saudi Arabia', 'kr-kr': 'South Korea',
+  'it-it': 'Italy', 'es-es': 'Spain', 'mx-es': 'Mexico',
+  'nl-nl': 'Netherlands', 'se-sv': 'Sweden', 'no-no': 'Norway',
+  'pl-pl': 'Poland', 'tr-tr': 'Turkey', 'id-en': 'Indonesia',
+  'th-th': 'Thailand', 'ph-en': 'Philippines', 'my-en': 'Malaysia',
+  'ng-en': 'Nigeria', 'ke-en': 'Kenya', 'eg-ar': 'Egypt',
+  'pk-en': 'Pakistan', 'bd-en': 'Bangladesh', 'lk-en': 'Sri Lanka',
+  'nz-en': 'New Zealand', 'ie-en': 'Ireland', 'il-he': 'Israel',
+  'ch-de': 'Switzerland', 'at-de': 'Austria', 'be-fr': 'Belgium',
+  'cn-zh': 'China', 'tw-zh': 'Taiwan', 'hk-zh': 'Hong Kong',
+  'ar-es': 'Argentina', 'co-es': 'Colombia', 'cl-es': 'Chile',
+};
+
 // ── Helper: call Ollama ────────────────────────────────────────────
 async function callOllama(model, prompt) {
   const res = await fetch(`${OLLAMA_BASE}/api/generate`, {
@@ -18,7 +38,7 @@ async function callOllama(model, prompt) {
 }
 
 // ── Helper: fetch news from DuckDuckGo ─────────────────────────────
-async function fetchDDGNews(query, count = 10) {
+async function fetchDDGNews(query, count = 10, region = 'wt-wt', dateFilter = '') {
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
@@ -31,8 +51,9 @@ async function fetchDDGNews(query, count = 10) {
   const vqdMatch = html.match(/vqd=["']?([^"'&]+)/);
   if (!vqdMatch) throw new Error('Could not get DDG search token');
 
-  // Fetch news results
-  const newsUrl = `https://duckduckgo.com/news.js?l=wt-wt&o=json&noamp=1&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&df=d`;
+  // Fetch news results with region (dateFilter: '' = all time, 'd' = day, 'w' = week)
+  const df = dateFilter ? `&df=${dateFilter}` : '';
+  const newsUrl = `https://duckduckgo.com/news.js?l=${region}&o=json&noamp=1&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}${df}`;
   const newsRes = await fetch(newsUrl, {
     headers: { ...headers, 'Referer': 'https://duckduckgo.com/' },
   });
@@ -42,7 +63,7 @@ async function fetchDDGNews(query, count = 10) {
 }
 
 // ── Helper: fetch news images from DuckDuckGo Images ───────────────
-async function fetchDDGImages(query, count = 5) {
+async function fetchDDGImages(query, count = 5, region = 'wt-wt') {
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
@@ -54,7 +75,7 @@ async function fetchDDGImages(query, count = 5) {
   const vqdMatch = html.match(/vqd=["']?([^"'&]+)/);
   if (!vqdMatch) return [];
 
-  const imgUrl = `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&f=,,,time:d&p=1`;
+  const imgUrl = `https://duckduckgo.com/i.js?l=${region}&o=json&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&p=1`;
   const imgRes = await fetch(imgUrl, {
     headers: { ...headers, 'Referer': 'https://duckduckgo.com/' },
   });
@@ -62,6 +83,65 @@ async function fetchDDGImages(query, count = 5) {
   const data = await imgRes.json();
   return (data.results || []).slice(0, count);
 }
+
+// ── Helper: fetch videos from DuckDuckGo Videos ────────────────────
+async function fetchDDGVideos(query, count = 20, region = 'wt-wt') {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
+
+  const tokenUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=videos&ia=videos`;
+  const tokenRes = await fetch(tokenUrl, { headers });
+  if (!tokenRes.ok) throw new Error(`DDG video token failed (${tokenRes.status})`);
+  const html = await tokenRes.text();
+  const vqdMatch = html.match(/vqd=["']?([^"'&]+)/);
+  if (!vqdMatch) throw new Error('Could not get DDG video token');
+
+  const vidUrl = `https://duckduckgo.com/v.js?l=${region}&o=json&noamp=1&q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&f=,,,&p=1`;
+  const vidRes = await fetch(vidUrl, {
+    headers: { ...headers, 'Referer': 'https://duckduckgo.com/' },
+  });
+  if (!vidRes.ok) throw new Error(`DDG video fetch failed (${vidRes.status})`);
+  const data = await vidRes.json();
+
+  return (data.results || []).slice(0, count).map(v => {
+    // Extract YouTube video ID from content URL or embed
+    let youtubeId = null;
+    const ytMatch = (v.content || '').match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) youtubeId = ytMatch[1];
+    if (!youtubeId) {
+      const embedMatch = (v.content || v.embed_url || '').match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+      if (embedMatch) youtubeId = embedMatch[1];
+    }
+
+    return {
+      title: v.title || 'Untitled',
+      description: v.description || '',
+      url: v.content || '',
+      embed_url: v.embed_url || '',
+      publisher: v.publisher || v.uploader || 'Unknown',
+      uploader: v.uploader || v.publisher || '',
+      duration: v.duration || '',
+      views: v.statistics ? v.statistics.viewCount : (v.views || null),
+      published: v.published || '',
+      thumbnail: v.images?.large || v.images?.medium || v.images?.small || v.image || '',
+      youtubeId,
+      isYouTube: !!youtubeId,
+    };
+  });
+}
+
+// ── Video category definitions ─────────────────────────────────────
+const VIDEO_CATEGORIES = {
+  trending: { label: '📈 Trending', queries: ['trending videos today', 'most popular videos right now', 'live tv channels streaming now', 'top trending videos this week'] },
+  livetv: { label: '📹 Live TV', queries: ['live tv channel streaming now', 'live news channel 24x7', 'live tv today', 'live streaming channel'] },
+  entertainment: { label: '🎭 Entertainment', queries: ['entertainment videos trending', 'funny viral videos today', 'best entertainment clips'] },
+  movies: { label: '🎬 Movies', queries: ['new movie trailers', 'latest movie reviews', 'upcoming movies'] },
+  viral: { label: '🔥 Viral Videos', queries: ['viral videos today', 'trending videos this week', 'most viewed videos today'] },
+  news: { label: '📺 News Channels', queries: ['live news channel', 'breaking news today', 'news headlines today live'] },
+  music: { label: '🎵 Music', queries: ['new music videos', 'trending music this week', 'top music videos'] },
+  sports: { label: '⚽ Sports', queries: ['sports highlights today', 'best sports moments', 'live sports'] },
+};
 
 // ── Helper: time ago string ────────────────────────────────────────
 function timeAgo(timestamp) {
@@ -77,36 +157,44 @@ function timeAgo(timestamp) {
 router.get('/feed', optionalAuth, async (req, res) => {
   try {
     const category = req.query.category || 'top';
+    const region = req.query.region || 'wt-wt';
+    const cacheKey = `${category}:${region}`;
 
     // Check cache (10 minutes = 600 seconds)
     const cached = db.prepare(
       `SELECT * FROM news_cache WHERE category = ? AND fetched_at > datetime('now', '-10 minutes') ORDER BY fetched_at DESC LIMIT 1`
-    ).get(category);
+    ).get(cacheKey);
 
     if (cached) {
       return res.json(JSON.parse(cached.data));
     }
 
     // No cache — trigger a refresh
-    const feed = await generateNewsFeed(category);
+    const feed = await generateNewsFeed(category, region);
     
     // Cache the result
     db.prepare(
       `INSERT OR REPLACE INTO news_cache (category, data, fetched_at) VALUES (?, ?, datetime('now'))`
-    ).run(category, JSON.stringify(feed));
+    ).run(cacheKey, JSON.stringify(feed));
 
     res.json(feed);
   } catch (err) {
     console.error('News feed error:', err);
-    // Try to return stale cache on error
+    const region = req.query.region || 'wt-wt';
+    const cacheKey = `${req.query.category || 'top'}:${region}`;
     const stale = db.prepare(
       `SELECT * FROM news_cache WHERE category = ? ORDER BY fetched_at DESC LIMIT 1`
-    ).get(req.query.category || 'top');
+    ).get(cacheKey);
     if (stale) {
       return res.json({ ...JSON.parse(stale.data), stale: true });
     }
     res.status(500).json({ error: err.message || 'Failed to fetch news' });
   }
+});
+
+// ── GET /api/news/countries — Available countries ──────────────────
+router.get('/countries', (req, res) => {
+  res.json(Object.entries(REGIONS).map(([code, name]) => ({ code, name })));
 });
 
 // ── GET /api/news/categories — Available categories ────────────────
@@ -120,21 +208,117 @@ router.get('/categories', (req, res) => {
     { id: 'entertainment', label: '🎬 Entertainment', query: 'entertainment celebrity movies news' },
     { id: 'science', label: '🔬 Science', query: 'science research discovery news' },
     { id: 'health', label: '🏥 Health', query: 'health medical wellness news' },
+    { id: 'videos', label: '▶️ Trending Videos', query: null },
   ]);
+});
+
+// ── GET /api/news/video-categories ─────────────────────────────────
+router.get('/video-categories', (req, res) => {
+  res.json(Object.entries(VIDEO_CATEGORIES).map(([id, v]) => ({ id, label: v.label })));
+});
+
+// ── GET /api/news/videos — Fetch videos by category ────────────────
+router.get('/videos', async (req, res) => {
+  const { category, region } = req.query;
+  const cat = category || 'entertainment';
+  const reg = region || 'wt-wt';
+  const countryName = REGIONS[reg] || 'World';
+  const catDef = VIDEO_CATEGORIES[cat] || VIDEO_CATEGORIES.entertainment;
+
+  // Check cache (15 min)
+  const cacheKey = `videos:${cat}:${reg}`;
+  const cached = db.prepare(`SELECT data, fetched_at FROM news_cache WHERE category = ? AND datetime(fetched_at, '+15 minutes') > datetime('now')`).get(cacheKey);
+  if (cached) {
+    try { return res.json(JSON.parse(cached.data)); } catch {}
+  }
+
+  try {
+    // Fetch videos from multiple queries in parallel
+    const queries = catDef.queries.map(q => reg !== 'wt-wt' ? `${q} ${countryName}` : q);
+    const allResults = await Promise.all(
+      queries.map(q => fetchDDGVideos(q, 15, reg).catch(() => []))
+    );
+
+    // Merge, dedupe by URL, prioritize YouTube
+    const seen = new Set();
+    let videos = [];
+    for (const batch of allResults) {
+      for (const v of batch) {
+        const key = v.youtubeId || v.url;
+        if (!seen.has(key) && key) {
+          seen.add(key);
+          videos.push(v);
+        }
+      }
+    }
+
+    // Filter out old videos — only keep those published within the last 30 days
+    // Always keep live streams regardless of date
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const isLiveTitle = (t) => /\blive\b/i.test(t);
+    videos = videos.filter(v => {
+      if (isLiveTitle(v.title)) return true; // always keep live streams
+      if (!v.published) return true; // keep if no date (could be live/recent)
+      const pubDate = new Date(v.published).getTime();
+      return !isNaN(pubDate) && pubDate >= thirtyDaysAgo;
+    });
+
+    // Sort: live streams first, then newest, then YouTube priority
+    videos.sort((a, b) => {
+      const aLive = isLiveTitle(a.title) ? 1 : 0;
+      const bLive = isLiveTitle(b.title) ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive; // live first
+      const dateA = a.published ? new Date(a.published).getTime() : Date.now();
+      const dateB = b.published ? new Date(b.published).getTime() : Date.now();
+      if (Math.abs(dateA - dateB) > 86400000) return dateB - dateA; // >1 day apart: newest first
+      if (a.isYouTube && !b.isYouTube) return -1;
+      if (!a.isYouTube && b.isYouTube) return 1;
+      return dateB - dateA;
+    });
+
+    const result = {
+      category: cat,
+      categoryLabel: catDef.label,
+      region: reg,
+      countryName,
+      videos: videos.slice(0, 30),
+      totalVideos: videos.length,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    // Cache result
+    db.prepare(`INSERT OR REPLACE INTO news_cache (category, data, fetched_at) VALUES (?, ?, datetime('now'))`).run(cacheKey, JSON.stringify(result));
+
+    res.json(result);
+  } catch (err) {
+    console.error('Video fetch error:', err);
+    // Try stale cache
+    const stale = db.prepare(`SELECT data FROM news_cache WHERE category = ?`).get(cacheKey);
+    if (stale) {
+      try {
+        const data = JSON.parse(stale.data);
+        data.stale = true;
+        return res.json(data);
+      } catch {}
+    }
+    res.status(500).json({ error: err.message || 'Failed to fetch videos' });
+  }
 });
 
 // ── POST /api/news/refresh — Force refresh a category ──────────────
 router.post('/refresh', optionalAuth, async (req, res) => {
-  const { category } = req.body;
+  const { category, region } = req.body;
   const cat = category || 'top';
+  const reg = region || 'wt-wt';
+  const cacheKey = `${cat}:${reg}`;
   try {
-    // Clear cache for this category
-    db.prepare(`DELETE FROM news_cache WHERE category = ?`).run(cat);
+    // Clear cache for this category+region
+    db.prepare(`DELETE FROM news_cache WHERE category = ?`).run(cacheKey);
     
-    const feed = await generateNewsFeed(cat);
+    const feed = await generateNewsFeed(cat, reg);
     db.prepare(
       `INSERT OR REPLACE INTO news_cache (category, data, fetched_at) VALUES (?, ?, datetime('now'))`
-    ).run(cat, JSON.stringify(feed));
+    ).run(cacheKey, JSON.stringify(feed));
 
     res.json(feed);
   } catch (err) {
@@ -144,16 +328,17 @@ router.post('/refresh', optionalAuth, async (req, res) => {
 });
 
 // ── Core: Generate news feed using DDG + Ollama ────────────────────
-async function generateNewsFeed(category) {
+async function generateNewsFeed(category, region = 'wt-wt') {
+  const countryName = REGIONS[region] || 'World';
   const CATEGORIES = {
-    top: 'top breaking news today',
+    top: `top breaking news today ${countryName}`,
     world: 'world news international today',
-    tech: 'technology AI software hardware news today',
-    business: 'business finance stock market economy news today',
-    sports: 'sports results cricket football NBA news today',
-    entertainment: 'entertainment movies celebrity music news today',
+    tech: `technology AI software hardware news today ${countryName}`,
+    business: `business finance stock market economy news today ${countryName}`,
+    sports: `sports results today ${countryName}`,
+    entertainment: `entertainment movies celebrity music news today ${countryName}`,
     science: 'science space research discovery news today',
-    health: 'health medical wellness news today',
+    health: `health medical wellness news today ${countryName}`,
   };
 
   const searchQuery = CATEGORIES[category] || CATEGORIES.top;
@@ -162,7 +347,7 @@ async function generateNewsFeed(category) {
   // Step 1: Fetch raw news from DuckDuckGo
   let rawNews = [];
   try {
-    rawNews = await fetchDDGNews(searchQuery, 20);
+    rawNews = await fetchDDGNews(searchQuery, 20, region, 'd');
   } catch (err) {
     console.error('DDG news fetch error:', err.message);
   }
@@ -170,7 +355,7 @@ async function generateNewsFeed(category) {
   // Step 2: Also fetch news images
   let newsImages = [];
   try {
-    newsImages = await fetchDDGImages(`${searchQuery} ${currentDate.split(',')[0]}`, 15);
+    newsImages = await fetchDDGImages(`${searchQuery} ${currentDate.split(',')[0]}`, 15, region);
   } catch (err) {
     console.error('DDG image fetch error:', err.message);
   }
@@ -220,11 +405,13 @@ async function generateNewsFeed(category) {
     if (aiSummary.length > 150) aiSummary = aiSummary.slice(0, 150) + '...';
   } catch (err) {
     console.error('Ollama summary error (non-critical):', err.message);
-    aiSummary = `Latest ${category === 'top' ? '' : category + ' '}news and updates`;
+    aiSummary = `Latest ${category === 'top' ? '' : category + ' '}news from ${countryName}`;
   }
 
   return {
     category,
+    region,
+    countryName,
     articles,
     aiSummary,
     lastUpdated: new Date().toISOString(),
@@ -244,30 +431,37 @@ async function fetchDDGWeb(query, count = 15) {
   if (!res.ok) throw new Error(`DDG web search failed (${res.status})`);
   const html = await res.text();
 
-  // Parse results from DDG lite HTML
+  // Parse results — DDG lite uses redirect URLs: //duckduckgo.com/l/?uddg=<encoded_url>
   const results = [];
-  // Match result links and snippets
-  const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/gi;
   const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
 
-  // Alternative: parse the table-based results
-  const rowRegex = /<tr[^>]*>[\s\S]*?<a[^>]+rel="nofollow"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/tr>/gi;
+  // Match result-link anchors (class="result-link") — href is a DDG redirect
+  const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   let match;
-  while ((match = rowRegex.exec(html)) !== null && results.length < count) {
-    const href = match[1];
+  while ((match = linkRegex.exec(html)) !== null && results.length < count) {
+    let href = match[1];
     const title = match[2].replace(/<[^>]+>/g, '').trim();
+    // Extract real URL from DDG redirect
+    const uddgMatch = href.match(/uddg=([^&]+)/);
+    if (uddgMatch) {
+      href = decodeURIComponent(uddgMatch[1]);
+    }
     if (href && title && href.startsWith('http')) {
       results.push({ url: href, title });
     }
   }
 
-  // If regex didn't work, try simpler approach
+  // Fallback: match nofollow anchors
   if (results.length === 0) {
-    const simpleRegex = /href="(https?:\/\/[^"]+)"[^>]*>([^<]{10,})<\/a>/gi;
-    while ((match = simpleRegex.exec(html)) !== null && results.length < count) {
-      const href = match[1];
+    const nfRegex = /<a[^>]+rel="nofollow"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((match = nfRegex.exec(html)) !== null && results.length < count) {
+      let href = match[1];
       const title = match[2].replace(/<[^>]+>/g, '').trim();
-      if (!href.includes('duckduckgo.com') && title.length > 5) {
+      const uddgMatch = href.match(/uddg=([^&]+)/);
+      if (uddgMatch) {
+        href = decodeURIComponent(uddgMatch[1]);
+      }
+      if (href && title && href.startsWith('http') && !href.includes('duckduckgo.com') && title.length > 5) {
         results.push({ url: href, title });
       }
     }
@@ -290,12 +484,13 @@ async function fetchDDGWeb(query, count = 15) {
 
 // ── POST /api/news/search — Web search with results + images ───────
 router.post('/search', optionalAuth, async (req, res) => {
-  const { query, type } = req.body;
+  const { query, type, region } = req.body;
   if (!query || query.trim().length < 2) {
     return res.status(400).json({ error: 'Search query is required' });
   }
 
   const q = query.trim();
+  const reg = region || 'wt-wt';
   const searchType = type || 'all'; // 'all', 'news', 'web', 'images'
 
   try {
@@ -314,7 +509,7 @@ router.post('/search', optionalAuth, async (req, res) => {
 
     if (searchType === 'all' || searchType === 'news') {
       promises.push(
-        fetchDDGNews(q, 12)
+        fetchDDGNews(q, 12, reg)
           .then(r => {
             results.newsResults = r.map((item, i) => ({
               id: `search-news-${i}`,
@@ -333,7 +528,7 @@ router.post('/search', optionalAuth, async (req, res) => {
 
     if (searchType === 'all' || searchType === 'images') {
       promises.push(
-        fetchDDGImages(q, 20)
+        fetchDDGImages(q, 20, reg)
           .then(r => {
             results.imageResults = r.map(img => ({
               url: img.image,
